@@ -1,0 +1,8 @@
+{
+  "hello_1": 1,
+  "hello_2": 2,
+  "array_data": [1,4,9,16,25],
+  "dic_data": {"name": "tony",
+    "address": "127.0.0.1"
+  }
+}
