@@ -63,6 +63,7 @@ def upload_files():
             print(file_item.filename)
             str_path = secure_filename(file_item.filename)
             file_item.save(os.path.join(app.config['UPLOAD_FOLDER'], str_path))
+            file_item.seek(0)
         img_data = request.files['file']
         img_data.seek(0)
         cvimg = bytes_to_cv2image(img_data.read())
