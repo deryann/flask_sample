@@ -67,6 +67,7 @@ def upload_files():
             print(file_item.filename)
             str_path = secure_filename(file_item.filename)
             file_item.save(os.path.join(custom_config['UPLOAD_FOLDER'], str_path))
+            file_item.seek(0)
 
         img_data = request.files['file']
         img_data.seek(0)

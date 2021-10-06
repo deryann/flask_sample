@@ -159,14 +159,16 @@ def upload_files():
         print(file_item.filename)
         str_path = secure_filename(file_item.filename)
         file_item.save(os.path.join(app.config['UPLOAD_FOLDER'], str_path))
+        file_item.seek(0)
     img_data = request.files['file']
-    img_data.seek(0)
+    
     cvimg = bytes_to_cv2image(img_data.read())
 
     cvimg = cv2.cvtColor(cvimg, cv2.COLOR_BGR2GRAY)  # 轉為單通道灰階
     cvimg = cv2.cvtColor(cvimg, cv2.COLOR_GRAY2BGR)  # 單通道灰階轉為三通道灰階
     cv2.imwrite('output.jpg', cvimg)
     str_base64 = cv2image_to_base64(cvimg)
+
 
     return jsonify({"filename": str_path, "r_base64_str": str_base64, "pic_idx": pic_idx})
 
