@@ -3,6 +3,7 @@ from flask import Flask
 from flasgger import Swagger
 from flask_cors import CORS
 
+import json
 import os
 import datetime
 import cv2
@@ -57,94 +58,30 @@ app.config['SWAGGER'] = {
     "version": "1.0.2",
     "termsOfService": "",
     "hide_top_bar": True,
-    #"openapi":"3.0.0",
-    'uiversion':3
+    'uiversion': 2
 }
-
-CORS(app)
-Swagger(app)
 
 
 def bytes_to_cv2image(imgdata):
     cv2img = cv2.cvtColor(np.array(Image.open(BytesIO(imgdata))), cv2.COLOR_RGB2BGR)
     return cv2img
 
-a =  """Upload files in to server
-    Retrieve node list
-    ---
-    requestBody:
-        content:
-            multipart/form-data:
-                schema:
-                    type: object
-                    properties:
-                        filename:
-                            type: array
-                            items:
-                                type: string
-                                format: binary
 
-    responses:
-        401:
-            description: Unauthorized error
-        200:
-            description: Retrieve node list
-            examples:
-                node-list: [{"id":26},{"id":44}]
+@app.route("/upload_file", methods=['POST'])
+def upload_file():
     """
-"""Upload files in to server
-Retrieve node list
----
-requestBody:
-    content:
-        multipart/form-data:
-            schema:
-                type: object
-                properties:
-                    fileName:
-                        type: file
-                        format: binary
-responses:
-    401:
-        description: Unauthorized error
-    200:
-        description: Retrieve node list
-        examples:
-            node-list: [{"id":26},{"id":44}]
-"""
-
-@app.route("/upload_files", methods=[ 'POST'])
-def upload_files():
-    """
-    This API let's you train word embeddings
-    Call this api passing your file and get the word embeddings.
+    Upload one file
     ---
+    tags:
+        - File Upload Example API
     consumes:
         - multipart/form-data
     parameters:
-        - name: file
-          in: formData
+        - in: formData
+          name: file_input
           type: file
           required: true
           description: The file to upload.
-        - name: cfg
-          in: formData
-          type: file
-          required: true
-          description: The cfg json file to upload.
-              {
-                   "Hello":"abcd",
-                   "lst":[1,2,3,4],
-                   "lst2":[[1,2],[4,5],[5,6]]
-              }
-          example: {"Hello":"abcd"}
-
-        - name: dict_data
-          in: formData
-          type: string
-          required: true
-          description: The json string to upload.
-          example: "Hello"
 
     responses:
         500:
@@ -152,55 +89,128 @@ def upload_files():
         200:
             description: INFO Success!
     """
-    dict_json = request.get_json()
 
-    for file_key in request.files:
+    file_item = request.files['file_input']
+    print(file_item.filename)
+    s_name = secure_filename(file_item.filename)
+    str_path = os.path.join(app.config['UPLOAD_FOLDER'], s_name)
+    file_item.save(str_path)
+    file_item.seek(0)
+    return jsonify({"filepath": str_path, })
+
+
+@app.route("/upload_3_files", methods=['POST'])
+def upload_files():
+    """
+    上傳 3 個檔案的 API
+    ---
+    tags:
+        - File Upload Example API
+    consumes:
+        - multipart/form-data
+    parameters:
+        - name: file_01
+          in: formData
+          type: file
+          required: true
+          description: The file 01 to upload.
+        - name: file_02
+          in: formData
+          type: file
+          required: true
+          description: The file 02 to upload.
+        - name: cfg_file
+          in: formData
+          type: file
+          required: true
+          description: The file 03 to upload by json format.
+
+    responses:
+        500:
+            description: ERROR Failed!
+        200:
+            description: INFO Success!
+    """
+    lst_file_path_in_server = []
+    for file_key in ['file_01', 'file_02', 'cfg_file']:
         file_item = request.files[file_key]
         print(file_item.filename)
-        str_path = secure_filename(file_item.filename)
-        file_item.save(os.path.join(app.config['UPLOAD_FOLDER'], str_path))
+        s_name = secure_filename(file_item.filename)
+        str_path = os.path.join(app.config['UPLOAD_FOLDER'], s_name)
+        file_item.save(str_path)
         file_item.seek(0)
-    img_data = request.files['file']
-    
-    cvimg = bytes_to_cv2image(img_data.read())
+        lst_file_path_in_server.append(str_path)
 
-    cvimg = cv2.cvtColor(cvimg, cv2.COLOR_BGR2GRAY)  # 轉為單通道灰階
-    cvimg = cv2.cvtColor(cvimg, cv2.COLOR_GRAY2BGR)  # 單通道灰階轉為三通道灰階
-    cv2.imwrite('output.jpg', cvimg)
-    str_base64 = cv2image_to_base64(cvimg)
+    # extra to parse the cfg_file from json to dictionary
+    file_item = request.files['cfg_file']
+    dic_loaded = json.load(file_item)
+    print(dic_loaded)
 
-
-    return jsonify({"filename": str_path, "r_base64_str": str_base64, "pic_idx": pic_idx})
+    return jsonify({"filepathes": lst_file_path_in_server, "cfg_loaded": dic_loaded})
 
 
+#
+@app.route("/gray_image", methods=['POST'])
+def gary_image():
+    """
+    Gray your jpeg image
+    return gray_image base64
+    ---
+    tags:
+        - File Upload Example API
+    consumes:
+        - multipart/form-data
+    parameters:
+        - in: formData
+          name: file_input
+          type: file
+          required: true
+          description: The file will become gray.
+
+    responses:
+        500:
+            description: ERROR Failed!
+        200:
+            description: INFO Success!
+
+    """
+    if request.method == 'POST':
+        img_data = request.files['file_input']
+
+        cvimg = bytes_to_cv2image(img_data.read())
+
+        cvimg = cv2.cvtColor(cvimg, cv2.COLOR_BGR2GRAY)  # 轉為單通道灰階
+        cvimg = cv2.cvtColor(cvimg, cv2.COLOR_GRAY2BGR)  # 單通道灰階轉為三通道灰階
+        cv2.imwrite('output.jpg', cvimg)
+        str_base64 = cv2image_to_base64(cvimg)
+    return jsonify({"str_base64": str_base64})
+
+
+#
+#
 @app.route("/echo", methods=['POST'])
 def echo_print():
     """
-      Get All Node List
-      Retrieve node list
-      ---
-      tags:
-        - Node APIs
-      produces: application/json,
-      parameters:
-      - name: name
-        in: path
-        type: string
-        required: true
-        example: hello
-      - name: node_id
-        in: path
-        type: string
-        required: true
-        example: not hello
+    Get json dictionary input
+    Return echo data with "echo" key
+    ---
+    tags:
+      - JSON POST API
+    produces: application/json,
+    parameters:
+        - in: body
+          name: input_json
+          description: input json data
+          schema:
+              type: object
+              example: {"a": "777", "b": "999" }
 
-      responses:
+    responses:
         401:
-          description: Unauthorized error
+            description: Unauthorized error
         200:
-          description: Retrieve node list
-          examples:
-            node-list: [{"id":26},{"id":44}]
+            description: Retrieve echo data
+            example: {"echo": {"a": "777", "b": "999" }}
     """
     if request.method == 'POST':
         dict_json = request.get_json()
@@ -208,22 +218,52 @@ def echo_print():
     return jsonify({"echo": dict_json})
 
 
-@app.route("/image_to_file", methods=['POST'])
-def image_to_file():
-    global pic_idx
+@app.route("/add_function", methods=['POST'])
+def add_function():
+    """
+    Get a, b
+    Return sum of a, b
+    ---
+    tags:
+      - JSON POST API
+    produces: application/json,
+    parameters:
+      - in: body
+        name: two_number
+        description: prepare 2 numbers for add function.
+        schema:
+            type: object
+            required:
+              - a
+              - b
+            properties:
+                a:
+                    type: int
+                    example: 3
+                b:
+                    type: int
+                    example: 4
+
+    responses:
+        401:
+          description: Unauthorized error
+        200:
+          description: Retrieve sum value
+          schema:
+            type: object
+            required:
+              - sum
+            properties:
+              sum:
+                type: integer
+                description: sum of 2 numbers.
+                example: 7
+
+    """
     if request.method == 'POST':
         dict_json = request.get_json()
-        _root_folder = "/home/node-red/deryannhuang/temp"
-        _root_folder = "."
-        str_base64 = dict_json['base64_str']
-        str_path = os.path.join(_root_folder, "uuid_{}.jpg".format(pic_idx))
-        base64_to_file(str_base64, str_path)
-        cvimg = base64_to_cv2image(str_base64)
-        cvimg = cv2.cvtColor(cvimg, cv2.COLOR_BGR2GRAY)  # 轉為單通道灰階
-        cvimg = cv2.cvtColor(cvimg, cv2.COLOR_GRAY2BGR)  # 單通道灰階轉為三通道灰階
-        str_base64 = cv2image_to_base64(cvimg)
-        pic_idx += 1
-        return jsonify({"filename": str_path, "r_base64_str": str_base64, "pic_idx": pic_idx})
+        n_sum = dict_json['a'] + dict_json['b']
+    return jsonify({"sum": n_sum})
 
 
 @app.route("/inc")
@@ -233,16 +273,14 @@ def inc():
       Retrieve counter value
       ---
       tags:
-        - Node APIs
+        - Get APIs
       produces: application/json,
       responses:
         401:
           description: Unauthorized error
         200:
           description: Retrieve counter value
-          schema:
-              type: string
-              example: "1"
+
     """
     global g_inc
     g_inc += 1
@@ -251,6 +289,19 @@ def inc():
 
 @app.route("/")
 def hello():
+    """
+    Get all pip list packages
+    Retrieve all python package and version
+    ---
+    tags:
+      - Get APIs
+    responses:
+      401:
+        description: Unauthorized error
+      200:
+        description: Retrieve all python package and version
+    """
+
     a = "[start]\t{}\n".format(datetime.datetime.now())
     import pkg_resources
     installed_packages = [(d.project_name, d.version) for d in pkg_resources.working_set]
@@ -261,11 +312,25 @@ def hello():
 
 @app.route("/time")
 def print_time():
+    """
+    Get system time
+    Retrieve system time from server
+    ---
+    tags:
+      - Get APIs
+    responses:
+      401:
+        description: Unauthorized error
+      200:
+        description: Retrieve system time string
+    """
     return "{}".format(datetime.datetime.now())
 
+
+CORS(app)
+Swagger(app)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
 
     app.run(debug=True, host='0.0.0.0', port=port)
-
